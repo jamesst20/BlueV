@@ -139,11 +139,19 @@ void Avrcp::reset()
 void Avrcp::start()
 {
     const auto up = [this] { return m_channel.up && m_channel.configured; };
+    const auto connecting = [this] { return m_channel.theirCid != 0; };
 
-    m_bt.wait(up, 1000);
+    // The headset searches for our target record and opens this channel itself a
+    // few seconds after the stream starts, so ours is only a short attempt; a
+    // long one would hold the stream up. service() registers once it is up.
+    m_bt.wait([&up, &connecting] { return up() || connecting(); }, 1000);
     if (up())
     {
         logLine("avrcp: the headset opened the channel");
+    }
+    else if (connecting())
+    {
+        logLine("avrcp: the headset is opening the channel");
     }
     else if (m_bt.openChannel(m_channel, avrcp::kAvctpPsm,
                               [this](std::uint32_t, const std::uint8_t* frame, int length) { onFrame(frame, length); }))
@@ -152,10 +160,12 @@ void Avrcp::start()
     }
     else
     {
-        noVolumeControl("it did not open the channel and ours failed");
-        return;
+        logLine("avrcp: channel not open yet, waiting for the headset");
     }
-    registerVolume();
+    if (up())
+    {
+        registerVolume();
+    }
 }
 
 void Avrcp::stop()

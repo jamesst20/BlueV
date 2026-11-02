@@ -88,7 +88,7 @@ sessions.
 AVDTP answers that never reached us: Open and Start came back only when asked again,
 8 s later, and a repeated Set Configuration was refused with `0x13` (in use), which
 ended that try. An ACL packet goes to the console about one time in 17 with our 16
-reads. So on this chip `A2dpSession::command` asks after 3 s, four times, and a
+reads. So on this chip `A2dpSession::command` asks after 3 s, twice, and a
 repeated Set Configuration, Open or Start that is refused counts as done (read as:
 the first was carried out and its answer lost, which that log does not prove). An
 adapter still waits 8 s, twice, and takes a refusal as a refusal.
@@ -103,11 +103,10 @@ channel even when the answer to Open goes to the console.
 
 ## 9a. The headset's volume (AVRCP, `core/audio/avrcp.*`)
 
-**Status: works on the console with the WH-CH720N, the Creative Stage Air V2
-and the Redmi Buds 4 Lite: the slider changes the volume audibly and the
-headset's buttons move the slider and show the message. Not tried on the
-WH-1000XM5, nor on a headset without absolute volume (that path is covered by
-the PC tests only).**
+**Status: works on the console with the WH-CH720N, the Creative Stage Air V2,
+the Redmi Buds 4 Lite and the WH-1000XM5: the slider changes the volume audibly
+and the headset's buttons move the slider and show the message. Not tried on a
+headset without absolute volume (that path is covered by the PC tests only).**
 
 What it does: shows the headset's own volume on the page, lets the page set it,
 and announces changes made with the headset's buttons. It is the headset's
@@ -120,14 +119,17 @@ the headset the target. The AVCTP channel (L2CAP psm `0x17`) is separate from
 A2DP; whatever goes wrong here only means "no volume control", never a lost
 stream.
 
-- `Avrcp::listen` binds psm `0x17` while idle. The CH720N opens the channel
-  itself, about a second after the media channel, once it has searched our
-  SDP records for `0x110c` (not ours) and `0x110e` (ours).
+- `Avrcp::listen` binds psm `0x17` while idle. Headsets open the channel
+  themselves, about a second after they have searched our SDP records for
+  `0x110c` (ours now, [section 8](bluetooth.md#8-sdp-corebluetoothsdp_servercpp)) and `0x110e` (ours).
 - `Avrcp::start`, after the A2DP media channel is up: waits 1 s for the headset
-  to open the channel, otherwise opens it. Then it sends `REGISTER_NOTIFICATION`
-  for the event VOLUME_CHANGED. The answer (interim, then `changed` at each
-  change) carries the volume, 0-127; each `changed` is answered by a new
-  registration, because a registration fires once.
+  to open the channel (or to be seen opening it, so ours is not asked for on a
+  channel that already exists), otherwise asks for it once. A retry is not worth
+  it, because the headset refuses psm `0x17` until it is ready and opens it
+  itself anyway; `service()` picks it up then. Then it sends
+  `REGISTER_NOTIFICATION` for the event VOLUME_CHANGED. The answer (interim, then `changed` at each change)
+  carries the volume, 0-127; each `changed` is answered by a new registration,
+  because a registration fires once.
 - `Avrcp::service`, from the once-a-second tick: registers if the headset
   opened the channel late, and sends a volume `setVolume()` asked for
   (`SET_ABSOLUTE_VOLUME`, which the headset answers `ACCEPTED` with the volume it

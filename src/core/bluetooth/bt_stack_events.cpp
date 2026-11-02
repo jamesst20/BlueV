@@ -389,11 +389,6 @@ void BtStack::onCommandStatus(const std::uint8_t* e)
         m_nameStatusDone = true;
         m_nameStatus = static_cast<int>(status);
     }
-    if (op == hci::kSetConnEncryption && ours)
-    {
-        m_encCmdDone = true;
-        m_encCmdStatus = static_cast<int>(status);
-    }
     if (status != 0)
     {
         if (op == hci::kAuthRequested)

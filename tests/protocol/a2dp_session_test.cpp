@@ -234,18 +234,18 @@ TEST_F(SessionOnTheConsolesChip, ARefusalAtTheFirstAskingIsARefusal)
     EXPECT_TRUE(sink.has("avdtp: configuration refused"));
 }
 
-TEST_F(SessionOnTheConsolesChip, ASpeakerThatNeverAnswersFailsAfterFourTries)
+TEST_F(SessionOnTheConsolesChip, ASpeakerThatNeverAnswersFailsAfterTwoTries)
 {
     speaker.silentAvdtp = true;
     EXPECT_FALSE(session.start(true));
     EXPECT_TRUE(sink.has("avdtp: signal 0x01 unanswered"));
-    EXPECT_EQ(4u, speaker.signals.size());
+    EXPECT_EQ(2u, speaker.signals.size());
 }
 
 TEST_F(Session, ASpeakerThatDialsInWhileWeWaitIsAccepted)
 {
     session.listen();
-    speaker.dialIn(2000);
+    speaker.dialIn(500);
     ASSERT_TRUE(session.start(false)) << sink.all();
     EXPECT_TRUE(sink.has("avdtp: the device opened the signaling channel"));
     // it was quiet, so we ran the procedure
@@ -263,11 +263,13 @@ TEST_F(Session, AfterAConnectionWeMakeWeWaitOnlyOneSecondBeforeOpeningTheChannel
     EXPECT_GE(clock.nowMs() - t0, 1000u);
 }
 
-TEST_F(Session, WithoutOurConnectionTheSpeakerGetsTwentySeconds)
+TEST_F(Session, WithoutOurConnectionWeAlsoWaitOnlyOneSecond)
 {
     const auto t0 = clock.nowMs();
     ASSERT_TRUE(session.start(false));
-    EXPECT_GE(clock.nowMs() - t0, 20000u);
+    EXPECT_TRUE(sink.has("avdtp: signaling channel opened by us"));
+    EXPECT_GE(clock.nowMs() - t0, 1000u);
+    EXPECT_LT(clock.nowMs() - t0, 9000u);
 }
 
 TEST_F(Session, TheSpeakersDiscoverIsAnsweredWithOneSourceEndpoint)

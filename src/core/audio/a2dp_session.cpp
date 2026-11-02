@@ -51,7 +51,7 @@ int A2dpSession::command(std::uint8_t signal, const std::uint8_t* params, int le
 {
     std::uint8_t cmd[2 + 62];
     const bool shared = m_bt.sharedChip();
-    const int attempts = shared ? 4 : 2;
+    const int attempts = 2;
     const std::uint32_t waitMs = shared ? 3000 : 8000;
 
     for (int attempt = 0; attempt < attempts; attempt++)
@@ -111,15 +111,12 @@ bool A2dpSession::openSignaling(bool initiatedByUs, bool& openedByUs)
 
     openedByUs = false;
 
-    // Many headsets open the AVDTP signaling channel themselves when they
-    // reconnect; give them a moment before opening it ourselves. When we made
-    // the connection the wait is short: some headsets hang up if the host has
-    // not started anything (the Sony WH-CH720N after about eight seconds, the
-    // WH-1000XM5 after two to three), while others (the Creative speaker)
-    // only open the channel after that. If our own attempt fails the headset
-    // still gets the rest of the twenty seconds.
+    // Some headsets open the AVDTP signaling channel themselves right after the
+    // link; give them a moment before opening it ourselves. The WH-1000XM5 does
+    // not, so the wait stays short in both directions.
+    (void)initiatedByUs;
     m_bt.bindInbound(kAvdtpPsm, m_sig, onFrame);
-    m_bt.wait(signalingUp, initiatedByUs ? 1000 : 20000);
+    m_bt.wait(signalingUp, 1000);
     if (m_sig.connDone && signalingUp())
     {
         logLine("avdtp: the device opened the signaling channel");

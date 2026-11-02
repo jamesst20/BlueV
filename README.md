@@ -83,8 +83,8 @@ to end the stream, **Turn off** to give the adapter back, **Stop BlueV** to quit
 - BlueV uses SBC, the codec every Bluetooth audio device supports. It does not send
   microphone audio.
 - Tested on a PS5 Slim only. With a USB adapter, a Creative Stage Air V2 and Sony WH-CH720N
-  headphones work. With the internal chip the Creative works, and the WH-CH720N works but
-  often needs a few tries to connect.
+  headphones work. With the internal chip the Creative works, the Sony WH-1000XM5 works,
+  and the WH-CH720N works but often needs a few tries to connect.
 
 ## Realtek adapters
 
@@ -159,8 +159,8 @@ firmware uploader so far; Broadcom (`.hcd`), Intel (`.sfi`/`.ddc`) and MediaTek 
 that boot from ROM are not handled yet.
 
 **Try other speakers and headphones, especially on the internal chip.** The Creative Stage
-Air V2 works there, and the Sony WH-CH720N works but often needs a few tries. If you test
-other ones on the internal chip, please share the log.
+Air V2 and the Sony WH-1000XM5 work there, and the Sony WH-CH720N works but often needs a
+few tries. If you test other ones on the internal chip, please share the log.
 
 **Improve the internal chip support.** The internal chip is shared with the console's own
 Bluetooth stack, which makes it the hard part (see [`docs/shared-chip.md`](docs/shared-chip.md)

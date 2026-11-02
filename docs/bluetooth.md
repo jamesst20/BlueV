@@ -156,9 +156,8 @@ collision" — a collision means a transaction is already running, so it is not 
 failure. On the shared chip the console's reads also take some of the pairing
 events, which is the other reason for repeating. A wrong key is not retried.
 Then it waits for the link to encrypt itself (0.5 s for a device we have a key
-for, 4 s after a new pairing) and forces it with Set Connection Encryption every
-3 s for up to 12 s, logging a refusal; a fresh pairing takes a moment to settle
-in the headset. The WH-CH720N and the Redmi Buds never encrypt by themselves, the
+for, 4 s after a new pairing) and forces it once with Set Connection Encryption
+(10 s); a fresh pairing takes a moment to settle in the headset. The WH-CH720N and the Redmi Buds never encrypt by themselves, the
 Creative speaker does within 0.2 s; the wait used to be 2 s for all and cost
 every connection that long (2026-10-30). A failed authentication with a stored
 key deletes that bond.
@@ -211,9 +210,10 @@ connection generation number) that new link is kept for the next session.
     every 4 s with the same id (a new id can read as a second configuration), never once the device sent its own, and 4 s
     after that ours is taken as accepted. Channels the device opens are not covered:
     their single request is not repeated. The device's own configure request can be
-    lost the same way, which leaves the channel half open on its side: when none
-    came 3 s after ours was accepted, the channel is closed and asked for again,
-    once (`reopenChannel`). Every signaling command on this chip is logged
+    lost the same way. The channel is open on the device's side all the same, so on
+    this chip it is used without that request (after 8 s): closing it and asking
+    again is answered "no resources", the device still holds it, and never worked.
+    Every signaling command on this chip is logged
     (`l2cap: >` and `l2cap: <`, with its bytes).
   - CID `0x50`: SDP (`sdp_handle`).
   - Others: the frame handler of the registered channel.
@@ -226,14 +226,19 @@ connection generation number) that new link is kept for the next session.
   40 packets/s; a 44.1/48 kHz stream needs 49-53, and with those limits the
   Slim dropped about 20 ms of audio every 10 s.
 
-Channel API: `openChannel` (connection request, then configure requests
-every 6 s until the channel is `up` and `configured`; a "no resources" answer is
-retried; gives up after 14 s), `closeChannel`, `bindInbound`.
+Channel API: `openChannel` (one connection request, then configure requests
+every 6 s until the channel is `up` and `configured`), `closeChannel`,
+`bindInbound`. The connection request is not retried: a headset answers it or
+refuses it, and a refusal does not clear up on the same link (measured, 15 tries
+over 30 s all refused), so a failed setup is settled by dialling the device
+again. A channel the device opened counts as `up` as soon as the device
+configured it, even when it never answers our configure request: that keeps us
+from opening a second channel to a PSM that is already open.
 
 ## 8. SDP (`core/bluetooth/sdp_server.cpp`)
 
 A minimal SDP server so headsets recognise us as an A2DP source: Service Search,
-Service Attribute and Service Search Attribute PDUs. Two records:
+Service Attribute and Service Search Attribute PDUs. Four records:
 
 - `0x10001`: service class A2DP Source (`0x110a`), protocol list (L2CAP/AVDTP),
   profile (`0x110d`), name `BlueV`. Found by `0x110a`, `0x110d`, `0x0019`,

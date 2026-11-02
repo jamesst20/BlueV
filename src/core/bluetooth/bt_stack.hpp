@@ -174,7 +174,7 @@ class BtStack
     }
 
     // ---- L2CAP (bt_stack_l2cap.cpp) ----
-    bool openChannel(L2Channel& channel, std::uint16_t psm, FrameHandler handler, int busyTries = 15);
+    bool openChannel(L2Channel& channel, std::uint16_t psm, FrameHandler handler);
     void closeChannel(L2Channel& channel);
     // accept an inbound connection to `psm` on `channel`; binding a PSM again
     // replaces the channel (at most two PSMs)
@@ -232,9 +232,6 @@ class BtStack
     // Writes the all-events mask. On the console's chip the console's stack
     // writes its own while it works, so it is put back before every scan.
     void setEventMask(int attempts = 5);
-    // Turns Simple Pairing on again; the console's stack can switch it off on
-    // the shared chip, which would leave a new device to a PIN.
-    void setSimplePairing();
     // Turns scanning off and disconnects the link we hold, if any.
     void dropStaleLinks();
 
@@ -300,9 +297,8 @@ class BtStack
         Accepted,
         OpenedByPeer
     };
-    Request requestChannel(L2Channel& channel, std::uint16_t psm, int busyTries);
+    Request requestChannel(L2Channel& channel, std::uint16_t psm);
     bool configureChannel(L2Channel& channel);
-    bool reopenChannel(L2Channel& channel, std::uint16_t psm);
     void dispatch(std::uint32_t cid, const std::uint8_t* data, int length);
     void addChannel(L2Channel& channel, FrameHandler handler);
     L2Channel* channelByTheirs(std::uint16_t cid);
@@ -356,8 +352,6 @@ class BtStack
     int m_authStatus = 0;
     bool m_encOn = false;
     int m_encStatus = 0;
-    bool m_encCmdDone = false; // the Command Status of our Set Connection Encryption arrived
-    int m_encCmdStatus = 0;
     unsigned m_connGen = 0; // counts successful connections
     std::atomic<long> m_foreignRequests{0};
 

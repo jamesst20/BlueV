@@ -26,8 +26,7 @@ using CreateConn = std::uint8_t[kCreateConnLength];
 // out; a collision means "already pairing", not a failure.
 constexpr std::uint32_t kAuthMs = 18000;
 constexpr std::uint32_t kAuthResendMs = 5000;
-constexpr std::uint32_t kEncryptionMs = 12000;
-constexpr std::uint32_t kEncryptionResendMs = 3000;
+constexpr std::uint32_t kEncryptionMs = 10000;
 
 // Alternates between the tries: the odd ones use DM1 only and no role switch,
 // the even ones every packet type.
@@ -67,6 +66,15 @@ bool BtStack::pageAttempts(std::uint8_t* req)
         }
         if (answered)
         {
+            // "command not allowed now" / "rejected, limited resources" / "busy":
+            // the controller is still tearing the last link down
+            if (m_connStatus == 0x0c || m_connStatus == 0x0d || m_connStatus == 0x3a)
+            {
+                logLine("connection: %s (try %d)", hciStatusName(static_cast<unsigned>(m_connStatus)), attempt);
+                clearConnectResult();
+                poll(1000);
+                continue;
+            }
             return true;
         }
         logLine("connection: no answer (try %d)", attempt);
@@ -230,36 +238,17 @@ bool BtStack::encryptLink()
         return false;
     }
 
-    // wait for the link to encrypt itself; force it if needed, and keep asking
-    // while it does not. A fresh pairing takes a moment to settle in the headset,
-    // which can refuse the command while it is still busy with it.
+    // wait for the link to encrypt itself; force it if it does not
     wait([this] { return m_encOn || m_disconnected; }, encryptionGraceMs, false);
-    const std::uint64_t encryptionDeadline = m_clock.nowMs() + kEncryptionMs;
-    bool encryptionSent = false;
-    bool encryptionStatusLogged = false;
-    std::uint64_t lastEncryption = m_clock.nowMs();
-
-    while (!m_encOn && !m_disconnected && m_clock.nowMs() < encryptionDeadline)
+    if (!m_encOn && !m_disconnected)
     {
-        if (!encryptionSent || m_clock.nowMs() - lastEncryption >= kEncryptionResendMs)
+        putLe16(req, m_handle);
+        req[2] = 1;
+        if (!cmd(hci::kSetConnEncryption, req, 3))
         {
-            putLe16(req, m_handle);
-            req[2] = 1;
-            if (!cmd(hci::kSetConnEncryption, req, 3))
-            {
-                return false;
-            }
-            encryptionSent = true;
-            lastEncryption = m_clock.nowMs();
-            m_encCmdDone = false;
+            return false;
         }
-        poll(500);
-        if (m_encCmdDone && m_encCmdStatus != 0 && !encryptionStatusLogged)
-        {
-            logLine("encryption: refused (%s, status %#04x)", hciStatusName(static_cast<unsigned>(m_encCmdStatus)),
-                    m_encCmdStatus);
-            encryptionStatusLogged = true;
-        }
+        wait([this] { return m_encOn || m_disconnected; }, kEncryptionMs, false);
     }
     if (!m_encOn)
     {
@@ -332,10 +321,6 @@ bool BtStack::connectTo(const BdAddr& peer)
             m_key.have ? " (paired before)" : " (new device)");
     const std::uint64_t began = m_clock.nowMs();
 
-    if (!m_external)
-    {
-        setSimplePairing();
-    }
     if (!pageDevice(peer, psrm, clock))
     {
         logLine("connect: no link after %.1f s", static_cast<double>(m_clock.nowMs() - began) / 1000.0);
