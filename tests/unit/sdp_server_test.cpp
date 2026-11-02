@@ -20,10 +20,10 @@ std::vector<std::uint8_t> request(std::uint8_t pdu, const std::vector<std::uint8
     return r;
 }
 
-// pattern: sequence with one 16 bit UUID, maximum record count 2, no continuation
-std::vector<std::uint8_t> searchFor(std::uint16_t uuid)
+// pattern: sequence with one 16 bit UUID, maximum record count, no continuation
+std::vector<std::uint8_t> searchFor(std::uint16_t uuid, std::uint8_t max = 2)
 {
-    return {0x35, 0x03, 0x19, static_cast<std::uint8_t>(uuid >> 8), static_cast<std::uint8_t>(uuid), 0x00, 0x02, 0x00};
+    return {0x35, 0x03, 0x19, static_cast<std::uint8_t>(uuid >> 8), static_cast<std::uint8_t>(uuid), 0x00, max, 0x00};
 }
 
 int ask(const std::vector<std::uint8_t>& req, std::uint8_t* out, int cap = 512)
@@ -66,23 +66,48 @@ TEST(SdpServer, SearchForTheRemoteControlFindsItsOwnRecord)
 
     for (std::uint16_t uuid : {0x110e, 0x0017})
     {
-        ASSERT_EQ(14, ask(request(0x02, searchFor(uuid)), out)) << std::hex << uuid;
-        EXPECT_EQ(1, out[6]);
+        // the target record carries the same class and PSM, so both match
+        ASSERT_EQ(18, ask(request(0x02, searchFor(uuid)), out)) << std::hex << uuid;
+        EXPECT_EQ(2, out[6]);
         EXPECT_EQ(0x02, out[12]); // handle 0x00010002
+        EXPECT_EQ(0x04, out[16]); // handle 0x00010004
     }
 }
 
-TEST(SdpServer, SearchForWhatBothShareFindsBothRecords)
+TEST(SdpServer, SearchForTheDeviceIdentityFindsItsOwnRecord)
+{
+    std::uint8_t out[512];
+    bluev::testing::CaptureSink sink;
+
+    // headsets look this up first; an empty answer makes some hang up
+    ASSERT_EQ(14, ask(request(0x02, searchFor(0x1200)), out));
+    EXPECT_EQ(1, out[6]);
+    EXPECT_EQ(0x03, out[12]); // handle 0x00010003
+    EXPECT_TRUE(sink.has("service search -> 1 record"));
+}
+
+TEST(SdpServer, SearchForTheRemoteControlTargetFindsItsOwnRecord)
+{
+    std::uint8_t out[512];
+    bluev::testing::CaptureSink sink;
+
+    // the headset searches for this to open our AVCTP channel
+    ASSERT_EQ(14, ask(request(0x02, searchFor(0x110c)), out));
+    EXPECT_EQ(1, out[6]);
+    EXPECT_EQ(0x04, out[12]); // handle 0x00010004
+    EXPECT_TRUE(sink.has("service search -> 1 record"));
+}
+
+TEST(SdpServer, SearchForThePublicBrowseGroupFindsEveryRecord)
 {
     std::uint8_t out[512];
 
-    for (std::uint16_t uuid : {0x0100, 0x1002})
-    {
-        ASSERT_EQ(18, ask(request(0x02, searchFor(uuid)), out)) << std::hex << uuid;
-        EXPECT_EQ(2, out[6]);
-        EXPECT_EQ(0x01, out[12]);
-        EXPECT_EQ(0x02, out[16]);
-    }
+    ASSERT_GT(ask(request(0x02, searchFor(0x1002, 0xff)), out), 0);
+    EXPECT_EQ(4, out[6]);
+    EXPECT_EQ(0x01, out[12]);
+    EXPECT_EQ(0x02, out[16]);
+    EXPECT_EQ(0x03, out[20]);
+    EXPECT_EQ(0x04, out[24]);
 }
 
 TEST(SdpServer, SearchForSomethingElseFindsNothing)
