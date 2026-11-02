@@ -585,10 +585,22 @@ TEST_F(WithRadioOn, AudioSetupFailureStopsTheAudioAndSaysSo)
     std::string body;
 
     ON_CALL(radio, startAudio(_)).WillByDefault(Return(false));
-    EXPECT_CALL(radio, stopAudio()).Times(1);
+    EXPECT_CALL(radio, stopAudio()).Times(2); // the attempt and the retry
     EXPECT_CALL(radio, stream(_)).Times(0);
     request("POST", std::string("/api/connect?addr=") + kSpeakerAddress, body);
-    ASSERT_TRUE(waitFor([&] { return status().find("audio setup failed") != std::string::npos; }, 3000));
+    ASSERT_TRUE(waitFor([&] { return status().find("audio setup failed") != std::string::npos; }, 8000));
+}
+
+TEST_F(WithRadioOn, AFailedAudioSetupIsDialledAgainOnce)
+{
+    std::string body;
+
+    ON_CALL(radio, peerAddress()).WillByDefault(Return(std::string(kSpeakerAddress)));
+    EXPECT_CALL(radio, connectTo(_)).Times(2); // the connect, then the retry
+    EXPECT_CALL(radio, startAudio(true)).WillOnce(Return(false)).WillOnce(Return(true));
+    EXPECT_CALL(radio, stream(_)).Times(1);
+    request("POST", std::string("/api/connect?addr=") + kSpeakerAddress, body);
+    ASSERT_TRUE(waitFor([&] { return status().find("streaming") != std::string::npos; }, 8000));
 }
 
 TEST_F(WithRadioOn, ADeviceThatDialsInIsAdoptedAndStreams)

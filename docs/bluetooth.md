@@ -122,6 +122,11 @@ does not. The pause is there because the headset still holds its A2DP state on t
 dropped link for a moment and refuses the transport
 channel until it has cleared it.
 
+The same refusal happens on a link the headset dialled in on: it opens no AVDTP
+channel and refuses ours until the link dies. `Service::runSession` therefore
+dials the device once more (3 s pause) when the audio setup fails, and gives up
+only after that.
+
 **On the console's chip** the stack's own scanning competes with us for radio time,
 so page and inquiry scan are off for each 4 s Create Connection and back on for the
 listen window (a device can only reach us with page scan on). A scan turns both

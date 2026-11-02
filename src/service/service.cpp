@@ -583,8 +583,27 @@ void Service::runSession(bool capturing, const BdAddr* address)
         setState(State::Connecting, "setting up audio");
         if (!m_radio.startAudio(address != nullptr))
         {
-            failure = "audio setup failed";
             m_radio.stopAudio();
+            // The headset refuses AVDTP while it still holds the channel of the
+            // link it dialled in on, and sometimes right after a page too; a
+            // fresh link clears it. One redial, then give up.
+            BdAddr again{};
+            if (!parseAddress(m_radio.peerAddress(), again))
+            {
+                failure = "audio setup failed";
+            }
+            else
+            {
+                logLine("audio setup failed, dialling again");
+                m_radio.disconnect();
+                std::this_thread::sleep_for(std::chrono::milliseconds(3000));
+                address = &again;
+                if (!m_radio.connectTo(again) || !m_radio.startAudio(true))
+                {
+                    m_radio.stopAudio();
+                    failure = "audio setup failed";
+                }
+            }
         }
     }
     if (failure == nullptr)
